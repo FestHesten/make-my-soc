@@ -1,0 +1,3 @@
+networks:
+  srv:
+    name: srv

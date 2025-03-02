@@ -1,0 +1,19 @@
+services:
+  traefik:
+    image: traefik:v3.3
+    container_name: "traefik"
+    privileged: true
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+#      - "--providers.docker.exposedbydefault=${TRAEFIK_EXPOSED_BY_DEFAULT:-false}"
+      - "--entryPoints.web.address=:80"
+      - "--entryPoints.webSecure=:443"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro" 
+    networks:
+      - srv 

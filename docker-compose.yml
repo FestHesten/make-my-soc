@@ -1,0 +1,5 @@
+include: 
+  - path: './tracecat/docker-compose.tracecat.yml'
+  - path: './traefik/docker-compose.traefik.yml'
+  - path: 'docker-compose.networks.yml'
+  - path: './whoami/docker-compose.whoami.yml'

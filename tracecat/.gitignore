@@ -1,0 +1,5 @@
+*
+
+!.gitignore
+!docker-compose.tracecat.yml
+!README.tracecat.md

@@ -1,0 +1,242 @@
+services:
+#  caddy:
+#    image: caddy:2.8.4-alpine
+#    container_name: caddy
+#    restart: unless-stopped
+#    networks:
+#      - core
+#    ports:
+#      - 80:80
+#    environment:
+#      - BASE_DOMAIN=${BASE_DOMAIN}
+#      - ADDRESS=${ADDRESS}
+#    volumes:
+#      - ./Caddyfile:/etc/caddy/Caddyfile
+#  /api = http://api:8000
+#  baseurl = http://ui:3000	
+
+
+  api:
+    image: ghcr.io/tracecathq/tracecat:${TRACECAT__IMAGE_TAG:-0.27.2}
+    container_name: api
+    restart: unless-stopped
+    networks:
+      - core
+      - core-db
+      - srv
+    labels:
+      #- "traefik.enable=true"
+      #- "traefik.http.routers.tracecat_api.rule=Host(`tracecat.${BASE_DOMAIN:-localhost}`"
+      - "traefik.http.routers.tracecat_api.rule=Host(`tracecat.localhost}`) && PathPrefix(`/api`)"
+    environment:
+      # App
+      LOG_LEVEL: ${LOG_LEVEL}
+      TRACECAT__API_URL: ${TRACECAT__API_URL}
+      TRACECAT__API_ROOT_PATH: ${TRACECAT__API_ROOT_PATH}
+      TRACECAT__APP_ENV: production
+      TRACECAT__DB_ENCRYPTION_KEY: ${TRACECAT__DB_ENCRYPTION_KEY} # Sensitive
+      TRACECAT__DB_SSLMODE: ${TRACECAT__DB_SSLMODE}
+      TRACECAT__DB_URI: ${TRACECAT__DB_URI} # Sensitive
+      TRACECAT__PUBLIC_API_URL: ${TRACECAT__PUBLIC_API_URL}
+      TRACECAT__PUBLIC_APP_URL: ${TRACECAT__PUBLIC_APP_URL}
+      TRACECAT__SERVICE_KEY: ${TRACECAT__SERVICE_KEY} # Sensitive
+      TRACECAT__SIGNING_SECRET: ${TRACECAT__SIGNING_SECRET} # Sensitive
+      TRACECAT__ALLOW_ORIGINS: ${TRACECAT__ALLOW_ORIGINS}
+      TRACECAT__AUTH_TYPES: ${TRACECAT__AUTH_TYPES}
+      TRACECAT__AUTH_ALLOWED_DOMAINS: ${TRACECAT__AUTH_ALLOWED_DOMAINS}
+      TRACECAT__AUTH_MIN_PASSWORD_LENGTH: ${TRACECAT__AUTH_MIN_PASSWORD_LENGTH}
+      TRACECAT__SETTING_OVERRIDE_SAML_ENABLED: ${TRACECAT__SETTING_OVERRIDE_SAML_ENABLED}
+      TRACECAT__EXECUTOR_URL: ${INTERNAL_EXECUTOR_URL}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
+      USER_AUTH_SECRET: ${USER_AUTH_SECRET}
+      RUN_MIGRATIONS: "true"
+      # SAML SSO
+      SAML_IDP_METADATA_URL: ${SAML_IDP_METADATA_URL}
+      # Temporal
+      TEMPORAL__CLUSTER_URL: ${TEMPORAL__CLUSTER_URL}
+      TEMPORAL__CLUSTER_QUEUE: ${TEMPORAL__CLUSTER_QUEUE}
+      TEMPORAL__CLUSTER_NAMESPACE: ${TEMPORAL__CLUSTER_NAMESPACE}
+      TEMPORAL__TASK_TIMEOUT: ${TEMPORAL__TASK_TIMEOUT}
+      # Remote registry
+      TRACECAT__ALLOWED_GIT_DOMAINS: ${TRACECAT__ALLOWED_GIT_DOMAINS}
+      TRACECAT__REMOTE_REPOSITORY_PACKAGE_NAME: ${TRACECAT__REMOTE_REPOSITORY_PACKAGE_NAME}
+      TRACECAT__REMOTE_REPOSITORY_URL: ${TRACECAT__REMOTE_REPOSITORY_URL}
+      # AI
+      TRACECAT__PRELOAD_OSS_MODELS: ${TRACECAT__PRELOAD_OSS_MODELS}
+      OLLAMA__API_URL: ${OLLAMA__API_URL}
+      # Local registry
+      TRACECAT__LOCAL_REPOSITORY_PATH: ${TRACECAT__LOCAL_REPOSITORY_PATH}
+      TRACECAT__LOCAL_REPOSITORY_ENABLED: ${TRACECAT__LOCAL_REPOSITORY_ENABLED}
+    volumes:
+      - ${TRACECAT__LOCAL_REPOSITORY_PATH}:/app/local_registry
+    depends_on:
+      - executor
+
+  worker:
+    image: ghcr.io/tracecathq/tracecat:${TRACECAT__IMAGE_TAG:-0.27.2}
+    restart: unless-stopped
+    networks:
+      - core
+      - core-db
+      - temporal
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL}
+      TRACECAT__API_ROOT_PATH: ${TRACECAT__API_ROOT_PATH}
+      TRACECAT__API_URL: ${TRACECAT__API_URL}
+      TRACECAT__APP_ENV: production
+      TRACECAT__DB_ENCRYPTION_KEY: ${TRACECAT__DB_ENCRYPTION_KEY} # Sensitive
+      TRACECAT__DB_SSLMODE: ${TRACECAT__DB_SSLMODE}
+      TRACECAT__DB_URI: ${TRACECAT__DB_URI} # Sensitive
+      TRACECAT__PUBLIC_API_URL: ${TRACECAT__PUBLIC_API_URL}
+      TRACECAT__EXECUTOR_URL: ${INTERNAL_EXECUTOR_URL}
+      TRACECAT__SERVICE_KEY: ${TRACECAT__SERVICE_KEY} # Sensitive
+      TRACECAT__SIGNING_SECRET: ${TRACECAT__SIGNING_SECRET} # Sensitive
+      # Temporal
+      TEMPORAL__CLUSTER_URL: ${TEMPORAL__CLUSTER_URL}
+      TEMPORAL__CLUSTER_QUEUE: ${TEMPORAL__CLUSTER_QUEUE}
+      TEMPORAL__CLUSTER_NAMESPACE: ${TEMPORAL__CLUSTER_NAMESPACE}
+      # Local registry
+      TRACECAT__LOCAL_REPOSITORY_PATH: ${TRACECAT__LOCAL_REPOSITORY_PATH}
+      TRACECAT__LOCAL_REPOSITORY_ENABLED: ${TRACECAT__LOCAL_REPOSITORY_ENABLED}
+    volumes:
+      - ${TRACECAT__LOCAL_REPOSITORY_PATH}:/app/local_registry
+    command: ["python", "tracecat/dsl/worker.py"]
+
+  executor:
+    image: ghcr.io/tracecathq/tracecat:${TRACECAT__IMAGE_TAG:-0.27.2}
+    restart: unless-stopped
+    networks:
+      - srv
+      - core-db
+      - temporal
+    # ports:
+    #   - 8265:8265
+    environment:
+      # Common
+      LOG_LEVEL: ${LOG_LEVEL}
+      TRACECAT__APP_ENV: production
+      TRACECAT__DB_ENCRYPTION_KEY: ${TRACECAT__DB_ENCRYPTION_KEY} # Sensitive
+      TRACECAT__DB_SSLMODE: ${TRACECAT__DB_SSLMODE}
+      TRACECAT__DB_URI: ${TRACECAT__DB_URI} # Sensitive
+      TRACECAT__SERVICE_KEY: ${TRACECAT__SERVICE_KEY} # Sensitive
+      # Remote registry
+      TRACECAT__ALLOWED_GIT_DOMAINS: ${TRACECAT__ALLOWED_GIT_DOMAINS}
+      TRACECAT__REMOTE_REPOSITORY_PACKAGE_NAME: ${TRACECAT__REMOTE_REPOSITORY_PACKAGE_NAME}
+      TRACECAT__REMOTE_REPOSITORY_URL: ${TRACECAT__REMOTE_REPOSITORY_URL}
+      # Email
+      TRACECAT__ALLOWED_EMAIL_ATTRIBUTES: ${TRACECAT__ALLOWED_EMAIL_ATTRIBUTES}
+      # AI
+      TRACECAT__PRELOAD_OSS_MODELS: ${TRACECAT__PRELOAD_OSS_MODELS}
+      OLLAMA__API_URL: ${OLLAMA__API_URL}
+      # Local registry
+      TRACECAT__LOCAL_REPOSITORY_PATH: ${TRACECAT__LOCAL_REPOSITORY_PATH}
+      TRACECAT__LOCAL_REPOSITORY_ENABLED: ${TRACECAT__LOCAL_REPOSITORY_ENABLED}
+    volumes:
+      - ${TRACECAT__LOCAL_REPOSITORY_PATH}:/app/local_registry
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "tracecat.api.executor:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+
+  ui:
+    image: ghcr.io/tracecathq/tracecat-ui:${TRACECAT__IMAGE_TAG:-0.27.2}
+    container_name: ui
+    restart: unless-stopped
+    labels:
+      #      - "traefik.enable=true"
+      - "traefik.http.routers.tracecat.rule=Host(`tracecat.localhost`)"
+    networks:
+      - srv
+      - core
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_APP_ENV: production
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_AUTH_TYPES: ${TRACECAT__AUTH_TYPES}
+      NEXT_SERVER_API_URL: ${NEXT_SERVER_API_URL}
+      NODE_ENV: production
+    depends_on:
+      - api
+
+  postgres_db:
+    labels:
+      - "traefik.enable=false"
+    image: postgres:16
+    container_name: postgres_db
+    restart: unless-stopped
+    networks:
+      - core-db
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: ${TRACECAT__POSTGRES_USER}
+      POSTGRES_PASSWORD: ${TRACECAT__POSTGRES_PASSWORD}
+    volumes:
+      - core-db:/var/lib/postgresql/data
+
+  temporal_postgres_db:
+    labels:
+      - "traefik.enable=false"
+    image: postgres:13
+    container_name: temporal_postgres_db
+    restart: unless-stopped
+    networks:
+      - temporal-db
+    environment:
+      POSTGRES_USER: ${TEMPORAL__POSTGRES_USER}
+      POSTGRES_PASSWORD: ${TEMPORAL__POSTGRES_PASSWORD} # Sensitive
+    volumes:
+      - temporal-db:/var/lib/postgresql/data
+
+  temporal:
+    image: temporalio/auto-setup:${TEMPORAL__VERSION}
+    container_name: temporal
+    restart: unless-stopped
+    networks:
+      - core
+      - temporal
+      - temporal-db
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=${TEMPORAL__POSTGRES_USER}
+      - POSTGRES_PWD=${TEMPORAL__POSTGRES_PASSWORD} # Sensitive
+      - POSTGRES_SEEDS=temporal_postgres_db
+      - LOG_LEVEL=warn
+    depends_on:
+      - temporal_postgres_db
+
+  temporal_ui:
+    image: temporalio/ui:${TEMPORAL__UI_VERSION}
+    container_name: temporal_ui
+    restart: unless-stopped
+    networks:
+      - temporal
+    # ports:
+    #   - 8080:8080
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:8080
+    depends_on:
+      - temporal
+    attach: false
+volumes:
+  core-db:
+  temporal-db:
+
+networks:
+  srv:
+    name: srv
+  core:
+  core-db:
+    internal: true
+  temporal:
+  temporal-db:
+    internal: true
