@@ -6,7 +6,7 @@ services:
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
-#      - "--providers.docker.exposedbydefault=${TRAEFIK_EXPOSED_BY_DEFAULT:-false}"
+      - "--providers.docker.exposedbydefault=${TRAEFIK_EXPOSED_BY_DEFAULT:-false}"
       - "--entryPoints.web.address=:80"
       - "--entryPoints.webSecure=:443"
     ports:

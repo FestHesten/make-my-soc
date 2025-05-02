@@ -1,33 +1,18 @@
 services:
-#  caddy:
-#    image: caddy:2.8.4-alpine
-#    container_name: caddy
-#    restart: unless-stopped
-#    networks:
-#      - core
-#    ports:
-#      - 80:80
-#    environment:
-#      - BASE_DOMAIN=${BASE_DOMAIN}
-#      - ADDRESS=${ADDRESS}
-#    volumes:
-#      - ./Caddyfile:/etc/caddy/Caddyfile
-#  /api = http://api:8000
-#  baseurl = http://ui:3000	
-
-
-  api:
-    image: ghcr.io/tracecathq/tracecat:${TRACECAT__IMAGE_TAG:-0.27.2}
-    container_name: api
+  tracecat_api:
+    image: ghcr.io/tracecathq/tracecat:${TRACECAT__IMAGE_TAG:-0.34.1}
+    container_name: tracecat_api
     restart: unless-stopped
     networks:
       - core
       - core-db
       - srv
     labels:
-      #- "traefik.enable=true"
-      #- "traefik.http.routers.tracecat_api.rule=Host(`tracecat.${BASE_DOMAIN:-localhost}`"
-      - "traefik.http.routers.tracecat_api.rule=Host(`tracecat.localhost}`) && PathPrefix(`/api`)"
+      - "traefik.enable=true"
+      - "traefik.docker.network=srv"
+      - "traefik.http.routers.tracecat_api.rule=Host(`tracecat.${BASE_DOMAIN:-localhost}`) && PathPrefix(`/api`)"
+
+
     environment:
       # App
       LOG_LEVEL: ${LOG_LEVEL}
@@ -62,19 +47,17 @@ services:
       TRACECAT__ALLOWED_GIT_DOMAINS: ${TRACECAT__ALLOWED_GIT_DOMAINS}
       TRACECAT__REMOTE_REPOSITORY_PACKAGE_NAME: ${TRACECAT__REMOTE_REPOSITORY_PACKAGE_NAME}
       TRACECAT__REMOTE_REPOSITORY_URL: ${TRACECAT__REMOTE_REPOSITORY_URL}
-      # AI
-      TRACECAT__PRELOAD_OSS_MODELS: ${TRACECAT__PRELOAD_OSS_MODELS}
-      OLLAMA__API_URL: ${OLLAMA__API_URL}
       # Local registry
       TRACECAT__LOCAL_REPOSITORY_PATH: ${TRACECAT__LOCAL_REPOSITORY_PATH}
       TRACECAT__LOCAL_REPOSITORY_ENABLED: ${TRACECAT__LOCAL_REPOSITORY_ENABLED}
     volumes:
       - ${TRACECAT__LOCAL_REPOSITORY_PATH}:/app/local_registry
     depends_on:
-      - executor
+      - tracecat_executor
 
-  worker:
-    image: ghcr.io/tracecathq/tracecat:${TRACECAT__IMAGE_TAG:-0.27.2}
+  tracecat_worker:
+    image: ghcr.io/tracecathq/tracecat:${TRACECAT__IMAGE_TAG:-0.34.1}
+    container_name: tracecat_worker
     restart: unless-stopped
     networks:
       - core
@@ -103,15 +86,15 @@ services:
       - ${TRACECAT__LOCAL_REPOSITORY_PATH}:/app/local_registry
     command: ["python", "tracecat/dsl/worker.py"]
 
-  executor:
-    image: ghcr.io/tracecathq/tracecat:${TRACECAT__IMAGE_TAG:-0.27.2}
+  tracecat_executor:
+    image: ghcr.io/tracecathq/tracecat:${TRACECAT__IMAGE_TAG:-0.34.1}
     restart: unless-stopped
+    container_name: tracecat_executor
     networks:
       - srv
       - core-db
       - temporal
-    # ports:
-    #   - 8265:8265
+
     environment:
       # Common
       LOG_LEVEL: ${LOG_LEVEL}
@@ -126,9 +109,6 @@ services:
       TRACECAT__REMOTE_REPOSITORY_URL: ${TRACECAT__REMOTE_REPOSITORY_URL}
       # Email
       TRACECAT__ALLOWED_EMAIL_ATTRIBUTES: ${TRACECAT__ALLOWED_EMAIL_ATTRIBUTES}
-      # AI
-      TRACECAT__PRELOAD_OSS_MODELS: ${TRACECAT__PRELOAD_OSS_MODELS}
-      OLLAMA__API_URL: ${OLLAMA__API_URL}
       # Local registry
       TRACECAT__LOCAL_REPOSITORY_PATH: ${TRACECAT__LOCAL_REPOSITORY_PATH}
       TRACECAT__LOCAL_REPOSITORY_ENABLED: ${TRACECAT__LOCAL_REPOSITORY_ENABLED}
@@ -146,13 +126,14 @@ services:
         "8000",
       ]
 
-  ui:
-    image: ghcr.io/tracecathq/tracecat-ui:${TRACECAT__IMAGE_TAG:-0.27.2}
-    container_name: ui
+  tracecat_ui:
+    image: ghcr.io/tracecathq/tracecat-ui:${TRACECAT__IMAGE_TAG:-0.34.1}
+    container_name: tracecat_ui
     restart: unless-stopped
     labels:
-      #      - "traefik.enable=true"
-      - "traefik.http.routers.tracecat.rule=Host(`tracecat.localhost`)"
+      - "traefik.enable=true"
+      - "traefik.docker.network=srv"
+      - "traefik.http.routers.tracecat.rule=Host(`tracecat.${BASE_DOMAIN:-localhost}`)"
     networks:
       - srv
       - core
@@ -164,13 +145,13 @@ services:
       NEXT_SERVER_API_URL: ${NEXT_SERVER_API_URL}
       NODE_ENV: production
     depends_on:
-      - api
+      - tracecat_api
 
-  postgres_db:
+  tracecat_postgres_db:
     labels:
       - "traefik.enable=false"
     image: postgres:16
-    container_name: postgres_db
+    container_name: tracecat_postgres_db
     restart: unless-stopped
     networks:
       - core-db
@@ -181,11 +162,9 @@ services:
     volumes:
       - core-db:/var/lib/postgresql/data
 
-  temporal_postgres_db:
-    labels:
-      - "traefik.enable=false"
+  tracecat_temporal_postgres_db:
     image: postgres:13
-    container_name: temporal_postgres_db
+    container_name: tracecat_temporal_postgres_db
     restart: unless-stopped
     networks:
       - temporal-db
@@ -195,9 +174,9 @@ services:
     volumes:
       - temporal-db:/var/lib/postgresql/data
 
-  temporal:
-    image: temporalio/auto-setup:${TEMPORAL__VERSION}
-    container_name: temporal
+  tracecat_temporal:
+    image: temporalio/auto-setup:${TEMPORAL__VERSION:-1.27.1}
+    container_name: tracecat_temporal
     restart: unless-stopped
     networks:
       - core
@@ -208,24 +187,23 @@ services:
       - DB_PORT=5432
       - POSTGRES_USER=${TEMPORAL__POSTGRES_USER}
       - POSTGRES_PWD=${TEMPORAL__POSTGRES_PASSWORD} # Sensitive
-      - POSTGRES_SEEDS=temporal_postgres_db
+      - POSTGRES_SEEDS=tracecat_temporal_postgres_db
       - LOG_LEVEL=warn
     depends_on:
-      - temporal_postgres_db
+      - tracecat_temporal_postgres_db
 
-  temporal_ui:
+  tracecat_temporal_ui:
     image: temporalio/ui:${TEMPORAL__UI_VERSION}
-    container_name: temporal_ui
+    container_name: tracecat_temporal_ui
     restart: unless-stopped
     networks:
       - temporal
-    # ports:
-    #   - 8080:8080
+
     environment:
-      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_ADDRESS=_tracecat_temporal:7233
       - TEMPORAL_CORS_ORIGINS=http://localhost:8080
     depends_on:
-      - temporal
+      - tracecat_temporal
     attach: false
 volumes:
   core-db:
