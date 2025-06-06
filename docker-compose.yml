@@ -3,3 +3,4 @@ include:
   - path: './traefik/docker-compose.traefik.yml'
   - path: 'docker-compose.networks.yml'
   - path: './whoami/docker-compose.whoami.yml'
+  - path: './dfir-iris/docker-compose.dfir-iris.yml'
